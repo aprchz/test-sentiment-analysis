@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from flasgger import swag_from
 import io
 import json
@@ -19,6 +20,7 @@ class CustomJSONEncoder(BaseJSONEncoder):
 
 # Initialize Flask app
 app = Flask(__name__)
+CORS(app)
 app.json_encoder = CustomJSONEncoder  # Set the custom encoder
 
 swagger_template = dict(
@@ -46,7 +48,7 @@ swagger_config = {
 swagger = Swagger(app, template=swagger_template, config=swagger_config)
 
 # Connect to SQLite database
-connection = sqlite3.connect(r'E:\Sentimen\sentimen\data.db', check_same_thread=False)
+connection = sqlite3.connect(r'data.db', check_same_thread=False)
 
 # Text preprocessing functions
 def clean_text(text):
@@ -188,6 +190,7 @@ def lstm_upload():
         for text in df_csv['Tweet']:
             sentiment = pred(pred_sentiment(text))
             cursor = connection.cursor()
+            cursor.execute('CREATE TABLE IF NOT EXISTS Platinum_lstm (TweetOri TEXT, TweetClean TEXT, Sentimen TEXT)')
             cursor.execute('INSERT INTO Platinum_lstm (TweetOri, TweetClean, Sentimen) VALUES (?, ?, ?)', (text, text, sentiment))
             connection.commit()
 
