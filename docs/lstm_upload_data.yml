@@ -1,0 +1,15 @@
+tags:
+  - LSTM(Upload)
+summary: Sentiment will be analyzed with LSTM model based on the uploaded text  
+parameters:
+  - name: lstm_upload
+    in: formData
+    required: true
+    type: file
+responses:
+  '200':
+    description: Successful response
+  '400':
+    description: Bad Request
+  '500':
+    description: Internal Server Error

@@ -1,0 +1,16 @@
+tags:
+  - NN(Text)
+summary: Sentiment Analysis using NN
+description: Sentiment will be analyzed with NN model based on the text  
+parameters:
+  - name: nn_text
+    in: formData
+    required: true
+    type: string    
+responses:
+  '200':
+    description: Successful response
+  '400':
+    description: Bad Request
+  '500':
+    description: Internal Server Error
