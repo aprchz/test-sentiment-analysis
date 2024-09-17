@@ -120,8 +120,8 @@ def lstm_text():
 
         # Save to database
         cursor = connection.cursor()
-        cursor.execute('CREATE TABLE IF NOT EXISTS lstm_input_data (original_text TEXT, text TEXT, sentiment TEXT)')
-        cursor.execute('INSERT INTO lstm_input_data (original_text, text, sentiment) VALUES (?, ?, ?)', (original_text, cleaned_text, sentiment))
+        cursor.execute('CREATE TABLE IF NOT EXISTS lstm_TEXTINPUT (original_text TEXT, text TEXT, sentiment TEXT)')
+        cursor.execute('INSERT INTO lstm_TEXTINPUT (original_text, text, sentiment) VALUES (?, ?, ?)', (original_text, cleaned_text, sentiment))
         connection.commit()
 
         return jsonify(json_response)
@@ -155,8 +155,8 @@ def nn_text():
 
         # Save to database
         cursor = connection.cursor()
-        cursor.execute('CREATE TABLE IF NOT EXISTS nn_input_data (original_text TEXT, text TEXT, sentiment TEXT)')
-        cursor.execute('INSERT INTO nn_input_data (original_text, text, sentiment) VALUES (?, ?, ?)', (original_text, cleaned_text, sentiment))
+        cursor.execute('CREATE TABLE IF NOT EXISTS nn_TEXTINPUT (original_text TEXT, text TEXT, sentiment TEXT)')
+        cursor.execute('INSERT INTO nn_TEXTINPUT (original_text, text, sentiment) VALUES (?, ?, ?)', (original_text, cleaned_text, sentiment))
         connection.commit()
 
         return jsonify(json_response)
@@ -170,7 +170,7 @@ def lstm_upload():
     try:
         file = request.files["lstm_upload"]
         df_csv = pd.read_csv(file, encoding="latin-1")
-        df_csv['Tweet'] = df_csv['Tweet'].apply(preprocess_input).apply(lambda x: x[1])
+        df_csv['TweetClean'] = df_csv['Tweet'].apply(preprocess_input).apply(lambda x: x[1])
 
         loaded_model = load_model(r'lstm.h5')
 
@@ -179,7 +179,7 @@ def lstm_upload():
 
         def pred_sentiment(text):
             sequences = tokenizer.texts_to_sequences([text])
-            padded_sequences = pad_sequences(sequences, maxlen=100)  # Adjust maxlen if needed
+            padded_sequences = pad_sequences(sequences, maxlen=100)
             predictions = loaded_model.predict(padded_sequences, batch_size=10)
             return predictions[0]
 
@@ -187,16 +187,27 @@ def lstm_upload():
             labels = ['Negatif', 'Netral', 'Positif']
             return labels[predictions.argmax()]
 
-        for text in df_csv['Tweet']:
-            sentiment = pred(pred_sentiment(text))
-            cursor = connection.cursor()
-            cursor.execute('CREATE TABLE IF NOT EXISTS Platinum_lstm (TweetOri TEXT, TweetClean TEXT, Sentimen TEXT)')
-            cursor.execute('INSERT INTO Platinum_lstm (TweetOri, TweetClean, Sentimen) VALUES (?, ?, ?)', (text, text, sentiment))
-            connection.commit()
+        # Prediksi sentimen untuk setiap teks
+        df_csv['Sentimen'] = df_csv['TweetClean'].apply(lambda text: pred(pred_sentiment(text)))
+
+        # Simpan ke dalam database
+        cursor = connection.cursor()
+        cursor.execute('CREATE TABLE IF NOT EXISTS UPLOAD_lstm (TweetOri TEXT, TweetClean TEXT, Sentimen TEXT)')
+        for _, row in df_csv.iterrows():
+            cursor.execute('INSERT INTO UPLOAD_lstm (TweetOri, TweetClean, Sentimen) VALUES (?, ?, ?)', 
+                           (row['Tweet'], row['TweetClean'], row['Sentimen']))
+        connection.commit()
+
+        # Simpan hasil ke file CSV
+        df_csv.to_csv('hasil_sentimen_lstm.csv', index=False)
+
+        # Simpan hasil ke file JSON
+        df_csv.to_json('hasil_sentimen_lstm.json', orient='records')
 
         return jsonify("SUKSES")
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 # API NN (Upload Text)
 @swag_from("docs/nn_upload_data.yml", methods=['POST'])
@@ -205,20 +216,29 @@ def nn_upload():
     try:
         file = request.files["nn_upload"]
         df_csv = pd.read_csv(file, encoding="latin-1")
-        df_csv['Tweet'] = df_csv['Tweet'].apply(preprocess_input).apply(lambda x: x[1])
+        df_csv['TweetClean'] = df_csv['Tweet'].apply(preprocess_input).apply(lambda x: x[1])
 
         with open('feature.pkl', 'rb') as f:
             loaded_vectorizer = pickle.load(f)
         with open('model.pkl', 'rb') as f:
             model_NN = pickle.load(f)
 
-        for text in df_csv['Tweet']:
-            text_vectorized = loaded_vectorizer.transform([text])
-            sentiment = model_NN.predict(text_vectorized)[0]
-            cursor = connection.cursor()
-            cursor.execute('CREATE TABLE IF NOT EXISTS Platinum_nn (original_text TEXT, text TEXT, sentiment TEXT)')
-            cursor.execute('INSERT INTO Platinum_nn (original_text, text, sentiment) VALUES (?, ?, ?)', (text, text, sentiment))
-            connection.commit()
+        # Prediksi sentimen
+        df_csv['Sentimen'] = df_csv['TweetClean'].apply(lambda text: model_NN.predict(loaded_vectorizer.transform([text]))[0])
+
+        # Simpan ke dalam database
+        cursor = connection.cursor()
+        cursor.execute('CREATE TABLE IF NOT EXISTS Upload_nn (original_text TEXT, text TEXT, sentiment TEXT)')
+        for _, row in df_csv.iterrows():
+            cursor.execute('INSERT INTO Upload_nn (original_text, text, sentiment) VALUES (?, ?, ?)', 
+                           (row['Tweet'], row['TweetClean'], row['Sentimen']))
+        connection.commit()
+
+        # Simpan hasil ke file CSV
+        df_csv.to_csv('hasil_sentimen_nn.csv', index=False)
+
+        # Simpan hasil ke file JSON
+        df_csv.to_json('hasil_sentimen_nn.json', orient='records')
 
         return jsonify("SUKSES")
     except Exception as e:
